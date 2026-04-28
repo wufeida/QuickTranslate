@@ -76,6 +76,30 @@ class HotkeyManager {
         return s
     }
 
+    static func nsModifiers(fromCarbon carbonMods: Int) -> NSEvent.ModifierFlags {
+        var flags: NSEvent.ModifierFlags = []
+        if carbonMods & Int(cmdKey)     != 0 { flags.insert(.command) }
+        if carbonMods & Int(optionKey)  != 0 { flags.insert(.option) }
+        if carbonMods & Int(shiftKey)   != 0 { flags.insert(.shift) }
+        if carbonMods & Int(controlKey) != 0 { flags.insert(.control) }
+        return flags
+    }
+
+    static func keyEquivalentChar(for keyCode: Int) -> String {
+        let table: [Int: String] = [
+            0: "a", 1: "s", 2: "d", 3: "f", 4: "h", 5: "g", 6: "z", 7: "x",
+            8: "c", 9: "v", 11: "b", 12: "q", 13: "w", 14: "e", 15: "r",
+            16: "y", 17: "t", 18: "1", 19: "2", 20: "3", 21: "4", 22: "6",
+            23: "5", 24: "=", 25: "9", 26: "7", 27: "-", 28: "8", 29: "0",
+            30: "]", 31: "o", 32: "u", 33: "[", 34: "i", 35: "p", 37: "l",
+            38: "j", 39: "'", 40: "k", 41: ";", 42: "\\", 43: ",", 44: "/",
+            45: "n", 46: "m", 47: ".", 50: "`",
+            36: "\r", 48: "\t", 49: " ", 51: "\u{8}", 53: "\u{1b}",
+            123: "\u{F702}", 124: "\u{F703}", 125: "\u{F701}", 126: "\u{F700}",
+        ]
+        return table[keyCode] ?? ""
+    }
+
     static func carbonModifiers(from flags: NSEvent.ModifierFlags) -> Int {
         var m = 0
         if flags.contains(.command) { m |= Int(cmdKey) }

@@ -54,6 +54,14 @@ class SettingsManager: ObservableObject {
         didSet { defaults.set(clipboardHotkeyModifiers, forKey: "clipboardHotkeyModifiers") }
     }
 
+    // 输入翻译快捷键：默认 Option+T
+    @Published var inputHotkeyCode: Int {
+        didSet { defaults.set(inputHotkeyCode, forKey: "inputHotkeyCode") }
+    }
+    @Published var inputHotkeyModifiers: Int {
+        didSet { defaults.set(inputHotkeyModifiers, forKey: "inputHotkeyModifiers") }
+    }
+
     private init() {
         selectedEngine = TranslationEngine(rawValue: defaults.string(forKey: "selectedEngine") ?? "") ?? .baidu
         targetLanguage = defaults.string(forKey: "targetLanguage") ?? "zh"
@@ -75,6 +83,10 @@ class SettingsManager: ObservableObject {
         clipboardHotkeyCode = savedClipCode == 0 ? 9 : savedClipCode  // 9 = V
         let savedClipMods = defaults.integer(forKey: "clipboardHotkeyModifiers")
         clipboardHotkeyModifiers = savedClipMods == 0 ? Int(optionKey) : savedClipMods
+        let savedInputCode = defaults.integer(forKey: "inputHotkeyCode")
+        inputHotkeyCode = savedInputCode == 0 ? 17 : savedInputCode  // 17 = T
+        let savedInputMods = defaults.integer(forKey: "inputHotkeyModifiers")
+        inputHotkeyModifiers = savedInputMods == 0 ? Int(optionKey) : savedInputMods
     }
 
     func makeTranslationService() -> TranslationService {

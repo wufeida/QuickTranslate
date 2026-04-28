@@ -8,17 +8,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyManager: HotkeyManager!
     private var ocrHotkeyManager: HotkeyManager!
     private var clipboardHotkeyManager: HotkeyManager!
+    private var inputHotkeyManager: HotkeyManager!
     private var translationPanel: TranslationPanel!
+    private var inputTranslationPanel: InputTranslationPanel!
     private var screenshotOverlay: ScreenshotOverlayWindow?
     private var settingsWindow: NSWindow?
     private var clipboardWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
     private weak var engineMenuItem: NSMenuItem?
+    private weak var inputMenuItem: NSMenuItem?
+    private weak var ocrMenuItem: NSMenuItem?
+    private weak var clipboardMenuItem: NSMenuItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusBar()
         checkAccessibilityPermission()
         translationPanel = TranslationPanel()
+        inputTranslationPanel = InputTranslationPanel()
         _ = ClipboardHistoryManager.shared  // 启动剪贴板监听
 
         let settings = SettingsManager.shared
@@ -47,6 +53,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         clipboardHotkeyManager.register()
 
+        // 输入翻译快捷键
+        inputHotkeyManager = HotkeyManager(id: 4,
+            keyCode: { settings.inputHotkeyCode },
+            modifiers: { settings.inputHotkeyModifiers }) { [weak self] in
+            self?.openInputTranslation()
+        }
+        inputHotkeyManager.register()
+
         // 设置变化时重新注册
         Publishers.CombineLatest(settings.$hotkeyCode, settings.$hotkeyModifiers)
             .dropFirst()
@@ -55,12 +69,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         Publishers.CombineLatest(settings.$ocrHotkeyCode, settings.$ocrHotkeyModifiers)
             .dropFirst()
-            .sink { [weak self] _, _ in self?.ocrHotkeyManager.reregister() }
+            .sink { [weak self] code, mods in
+                self?.ocrHotkeyManager.reregister()
+                if let item = self?.ocrMenuItem { self?.applyHotkey(to: item, keyCode: code, modifiers: mods) }
+            }
             .store(in: &cancellables)
 
         Publishers.CombineLatest(settings.$clipboardHotkeyCode, settings.$clipboardHotkeyModifiers)
             .dropFirst()
-            .sink { [weak self] _, _ in self?.clipboardHotkeyManager.reregister() }
+            .sink { [weak self] code, mods in
+                self?.clipboardHotkeyManager.reregister()
+                if let item = self?.clipboardMenuItem { self?.applyHotkey(to: item, keyCode: code, modifiers: mods) }
+            }
+            .store(in: &cancellables)
+
+        Publishers.CombineLatest(settings.$inputHotkeyCode, settings.$inputHotkeyModifiers)
+            .dropFirst()
+            .sink { [weak self] code, mods in
+                self?.inputHotkeyManager.reregister()
+                if let item = self?.inputMenuItem { self?.applyHotkey(to: item, keyCode: code, modifiers: mods) }
+            }
             .store(in: &cancellables)
 
         // 菜单栏引擎名称跟随设置变化
@@ -84,14 +112,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(engineItem)
         engineMenuItem = engineItem
 
+        let settings = SettingsManager.shared
+
+        let inputItem = NSMenuItem(title: "输入翻译", action: #selector(openInputTranslation), keyEquivalent: "")
+        let ocrItem = NSMenuItem(title: "截图翻译", action: #selector(handleOCRHotkey), keyEquivalent: "")
+        let clipItem = NSMenuItem(title: "剪贴板历史", action: #selector(openClipboardHistory), keyEquivalent: "")
+        applyHotkey(to: inputItem, keyCode: settings.inputHotkeyCode, modifiers: settings.inputHotkeyModifiers)
+        applyHotkey(to: ocrItem, keyCode: settings.ocrHotkeyCode, modifiers: settings.ocrHotkeyModifiers)
+        applyHotkey(to: clipItem, keyCode: settings.clipboardHotkeyCode, modifiers: settings.clipboardHotkeyModifiers)
+
         menu.addItem(NSMenuItem.separator())
+        menu.addItem(inputItem)
+        menu.addItem(ocrItem)
         menu.addItem(NSMenuItem(title: "翻译剪贴板", action: #selector(translateClipboard), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "剪贴板历史", action: #selector(openClipboardHistory), keyEquivalent: ""))
+        menu.addItem(clipItem)
+        inputMenuItem = inputItem
+        ocrMenuItem = ocrItem
+        clipboardMenuItem = clipItem
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "偏好设置...", action: #selector(openSettings), keyEquivalent: ","))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "退出 QuickTranslate", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
+    }
+
+    private func applyHotkey(to item: NSMenuItem, keyCode: Int, modifiers: Int) {
+        item.keyEquivalent = HotkeyManager.keyEquivalentChar(for: keyCode)
+        item.keyEquivalentModifierMask = HotkeyManager.nsModifiers(fromCarbon: modifiers)
     }
 
     // MARK: - 权限检查
@@ -109,6 +156,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func requestScreenRecordingPermission() {
         CGRequestScreenCaptureAccess()
+    }
+
+    // MARK: - 输入翻译
+
+    @objc @MainActor private func openInputTranslation() {
+        inputTranslationPanel.show()
     }
 
     // MARK: - 划词翻译
@@ -133,7 +186,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - 截图翻译
 
-    @objc private func handleOCRHotkey() {
+    @objc func handleOCRHotkey() {
         Task { @MainActor in
             guard hasScreenRecordingPermission() else {
                 // 弹出系统授权对话框并注册到隐私设置列表
@@ -188,7 +241,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let hosting = NSHostingController(rootView: SettingsView())
             let window = NSWindow(contentViewController: hosting)
             window.title = "偏好设置"
-            window.setContentSize(NSSize(width: 440, height: 268))
+            window.setContentSize(NSSize(width: 440, height: 300))
             window.styleMask = [.titled, .closable]
             window.delegate = self
             settingsWindow = window

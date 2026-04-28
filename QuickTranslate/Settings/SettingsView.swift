@@ -13,7 +13,7 @@ struct SettingsView: View {
                 .tabItem { Label("翻译引擎", systemImage: "globe") }
         }
         .padding(.top, 8)
-        .frame(width: 440, height: 268)
+        .frame(width: 440, height: 300)
     }
 }
 
@@ -71,6 +71,12 @@ private struct GeneralSettingsTab: View {
             row("截图翻译快捷键") {
                 HotkeyRecorderView(keyCode: $settings.ocrHotkeyCode,
                                    modifiers: $settings.ocrHotkeyModifiers)
+                    .frame(width: controlWidth)
+            }
+
+            row("输入翻译快捷键") {
+                HotkeyRecorderView(keyCode: $settings.inputHotkeyCode,
+                                   modifiers: $settings.inputHotkeyModifiers)
                     .frame(width: controlWidth)
             }
 
@@ -216,13 +222,15 @@ private struct HotkeyRecorderView: NSViewRepresentable {
         HotkeyRecorderNSView(keyCode: $keyCode, modifiers: $modifiers)
     }
     func updateNSView(_ nsView: HotkeyRecorderNSView, context: Context) {
+        nsView.keyCodeBinding = $keyCode
+        nsView.modifiersBinding = $modifiers
         nsView.refresh()
     }
 }
 
 class HotkeyRecorderNSView: NSView {
-    private var keyCodeBinding: Binding<Int>
-    private var modifiersBinding: Binding<Int>
+    var keyCodeBinding: Binding<Int>
+    var modifiersBinding: Binding<Int>
     private var isRecording = false
     private let label = NSTextField(labelWithString: "")
 
