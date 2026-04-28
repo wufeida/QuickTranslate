@@ -49,15 +49,14 @@ class TranslationViewModel: ObservableObject {
     }
 }
 
-private struct PanelHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
+private let maxPanelHeight: CGFloat = 480
 
 struct TranslationView: View {
     @ObservedObject var viewModel: TranslationViewModel
     let onClose: () -> Void
     var onHeightChange: ((CGFloat) -> Void)? = nil
+
+    @State private var contentHeight: CGFloat = 0
 
     var body: some View {
         ScrollView {
@@ -151,7 +150,15 @@ struct TranslationView: View {
                 }
                 .padding(12)
             }
+            // 显式锁定宽度，确保高度测量时文字换行与最终展示一致
+            .frame(width: 320, alignment: .leading)
+            .background(GeometryReader { geo in
+                Color.clear
+                    .onAppear { updateHeight(geo.size.height) }
+                    .onChange(of: geo.size.height) { updateHeight($0) }
+            })
         }
+        .scrollDisabled(contentHeight <= maxPanelHeight)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
@@ -159,14 +166,13 @@ struct TranslationView: View {
                 .stroke(Color.primary.opacity(0.1), lineWidth: 1)
         )
         .frame(width: 320)
-        .frame(maxHeight: 480)
-        .background(GeometryReader { geo in
-            Color.clear.preference(key: PanelHeightKey.self, value: geo.size.height)
-        })
-        .onPreferenceChange(PanelHeightKey.self) { height in
-            guard height > 0 else { return }
-            onHeightChange?(height)
-        }
+        .frame(height: contentHeight > 0 ? min(contentHeight, maxPanelHeight) : nil)
+    }
+
+    private func updateHeight(_ height: CGFloat) {
+        guard height > 0, abs(height - contentHeight) > 1 else { return }
+        contentHeight = height
+        onHeightChange?(min(height, maxPanelHeight))
     }
 }
 
