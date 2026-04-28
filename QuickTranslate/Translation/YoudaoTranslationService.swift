@@ -17,7 +17,7 @@ class YoudaoTranslationService: TranslationService {
         let signStr = appKey + input + salt + curtime + appSecret
         let sign = sha256(signStr)
 
-        var components = URLComponents(string: "https://openapi.youdao.com/api")!
+        var components = URLComponents()
         components.queryItems = [
             .init(name: "q", value: text),
             .init(name: "from", value: from),
@@ -29,20 +29,25 @@ class YoudaoTranslationService: TranslationService {
             .init(name: "curtime", value: curtime),
         ]
 
-        let (data, _) = try await URLSession.shared.data(from: components.url!)
+        var request = URLRequest(url: URL(string: "https://openapi.youdao.com/api")!)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = components.query?.data(using: .utf8)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
         let decoded = try JSONDecoder().decode(YoudaoResponse.self, from: data)
 
         if decoded.errorCode != "0" {
             throw TranslationError.apiError("错误码 \(decoded.errorCode)")
         }
-        guard let translation = decoded.translation?.first else {
+        guard let translations = decoded.translation, !translations.isEmpty else {
             throw TranslationError.invalidResponse
         }
 
         let phonetic = decoded.basic?.phonetic
         return TranslationResult(
             originalText: text,
-            translatedText: translation,
+            translatedText: translations.joined(separator: "\n"),
             detectedLanguage: decoded.l ?? from,
             phonetic: phonetic
         )

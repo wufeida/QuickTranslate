@@ -11,16 +11,21 @@ class TranslationPanel: NSObject {
         let viewModel = TranslationViewModel(originalText: text)
         let contentView = TranslationView(viewModel: viewModel, onClose: { [weak self] in
             self?.close()
+        }, onHeightChange: { [weak self] height in
+            self?.resizePanel(to: height)
         })
+
         let hosting = NSHostingView(rootView: contentView)
-        hosting.frame = NSRect(x: 0, y: 0, width: 320, height: 200)
+        hosting.frame = NSRect(x: 0, y: 0, width: 320, height: 480)
+        let initialHeight = min(hosting.fittingSize.height, 480)
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 200),
+            contentRect: NSRect(x: 0, y: 0, width: 320, height: initialHeight),
             styleMask: [.nonactivatingPanel, .fullSizeContentView, .borderless],
             backing: .buffered,
             defer: false
         )
+        hosting.frame = NSRect(x: 0, y: 0, width: 320, height: initialHeight)
         panel.contentView = hosting
         panel.level = .floating
         panel.isOpaque = false
@@ -28,7 +33,7 @@ class TranslationPanel: NSObject {
         panel.hasShadow = true
         panel.isMovableByWindowBackground = true
 
-        let origin = calculateOrigin(near: point, size: NSSize(width: 320, height: 200))
+        let origin = calculateOrigin(near: point, size: NSSize(width: 320, height: initialHeight))
         panel.setFrameOrigin(origin)
 
         self.panel = panel
@@ -83,6 +88,17 @@ class TranslationPanel: NSObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
             self?.close()
         }
+    }
+
+    @MainActor private func resizePanel(to height: CGFloat) {
+        guard let panel else { return }
+        let newHeight = min(height, 480)
+        let oldHeight = panel.frame.height
+        guard abs(newHeight - oldHeight) > 1 else { return }
+        var frame = panel.frame
+        frame.origin.y += oldHeight - newHeight  // 顶部位置不变，向下扩展
+        frame.size.height = newHeight
+        panel.setFrame(frame, display: true, animate: false)
     }
 
     @MainActor func close() {

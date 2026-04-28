@@ -14,7 +14,7 @@ class BaiduTranslationService: TranslationService {
         let salt = String(Int.random(in: 10000...99999))
         let sign = md5(appID + text + salt + secretKey)
 
-        var components = URLComponents(string: "https://fanyi-api.baidu.com/api/trans/vip/translate")!
+        var components = URLComponents()
         components.queryItems = [
             .init(name: "q", value: text),
             .init(name: "from", value: from),
@@ -24,19 +24,24 @@ class BaiduTranslationService: TranslationService {
             .init(name: "sign", value: sign),
         ]
 
-        let (data, _) = try await URLSession.shared.data(from: components.url!)
+        var request = URLRequest(url: URL(string: "https://fanyi-api.baidu.com/api/trans/vip/translate")!)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = components.query?.data(using: .utf8)
+
+        let (data, _) = try await URLSession.shared.data(for: request)
         let decoded = try JSONDecoder().decode(BaiduResponse.self, from: data)
 
         if let error = decoded.error_code {
             throw TranslationError.apiError("错误码 \(error)：\(decoded.error_msg ?? "")")
         }
-        guard let result = decoded.trans_result?.first else {
+        guard let results = decoded.trans_result, !results.isEmpty else {
             throw TranslationError.invalidResponse
         }
 
         return TranslationResult(
             originalText: text,
-            translatedText: result.dst,
+            translatedText: results.map { $0.dst }.joined(separator: "\n"),
             detectedLanguage: decoded.from ?? from,
             phonetic: nil
         )
