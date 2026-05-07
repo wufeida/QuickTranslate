@@ -80,6 +80,21 @@ class InputTranslationPanel: NSObject {
 
 // MARK: - ViewModel
 
+struct TargetLanguageOption: Identifiable {
+    let id: String
+    let label: String
+}
+
+let availableTargetLanguages: [TargetLanguageOption] = [
+    .init(id: "zh",  label: "中文（简体）"),
+    .init(id: "cht", label: "中文（繁体）"),
+    .init(id: "en",  label: "英语"),
+    .init(id: "jp",  label: "日语"),
+    .init(id: "kor", label: "韩语"),
+    .init(id: "fra", label: "法语"),
+    .init(id: "de",  label: "德语"),
+]
+
 @MainActor
 class InputTranslationViewModel: ObservableObject {
     @Published var inputText: String = ""
@@ -87,6 +102,7 @@ class InputTranslationViewModel: ObservableObject {
     @Published var detectedLanguage: String = ""
     @Published var isLoading: Bool = false
     @Published var errorMessage: String = ""
+    @Published var targetLanguage: String = SettingsManager.shared.targetLanguage
 
     func translate() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -97,7 +113,7 @@ class InputTranslationViewModel: ObservableObject {
         detectedLanguage = ""
 
         let service = SettingsManager.shared.makeTranslationService()
-        let target = SettingsManager.shared.targetLanguage
+        let target = targetLanguage
         Task {
             do {
                 let result = try await service.translate(text: text, from: "auto", to: target)
@@ -164,13 +180,21 @@ struct InputTranslationView: View {
             .padding(.vertical, 6)
 
             // 翻译按钮行
-            HStack {
+            HStack(spacing: 6) {
                 if !vm.detectedLanguage.isEmpty {
                     Text(vm.detectedLanguage)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
                 Spacer()
+                Picker("", selection: $vm.targetLanguage) {
+                    ForEach(availableTargetLanguages) { lang in
+                        Text(lang.label).tag(lang.id)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 110)
+                .controlSize(.small)
                 Button(action: vm.translate) {
                     if vm.isLoading {
                         ProgressView().scaleEffect(0.7).frame(width: 16, height: 16)
@@ -224,6 +248,10 @@ struct InputTranslationView: View {
                 .stroke(Color.primary.opacity(0.1), lineWidth: 1)
         )
         .frame(width: 400)
-        .onAppear { inputFocused = true }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                inputFocused = true
+            }
+        }
     }
 }
